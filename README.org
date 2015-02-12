@@ -1,0 +1,8 @@
+* About
+  This makes elscreen can manage buffer list for each screen.
+* Usage
+  To use this, add the following line somewhere in your init file:
+  
+  #+BEGIN_SRC emacs-lisp
+  (require 'elscreen-separate-buffer-list)
+  #+END_SRC
