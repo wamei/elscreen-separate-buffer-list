@@ -2,7 +2,7 @@
 
 ;; Author: wamei <wamei.cho@gmail.com>
 ;; Keywords: elscreen
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Package-Requires: ((elscreen "1.4.6"))
 
 ;; License:
@@ -36,6 +36,7 @@
 
 (defvar elscreen-separate-buffer-list-default '("*scratch*" "*Messages*"))
 (defvar elscreen-separate-buffer-list '())
+(defvar elscreen-separate-buffer-count-list '())
 
 (defun elscreen-get-separate-buffer-list (screen)
   "SCREENに保存されているSEPARATE-BUFFER-LISTを取得する."
@@ -74,20 +75,52 @@
 
 (defun elscreen-add-separate-buffer-list (buffer)
   "SEPARATE-BUFFER-LISTにBUFFERを加える."
-  (if (not (member buffer elscreen-separate-buffer-list))
-      (setq elscreen-separate-buffer-list (append (list buffer) elscreen-separate-buffer-list))))
+  (unless (member buffer elscreen-separate-buffer-list)
+    (setq elscreen-separate-buffer-list (append (list buffer) elscreen-separate-buffer-list))
+    (elscreen-separate-buffer-list-count-inc buffer)))
 
 (defun elscreen-remove-separate-buffer-list (buffer)
   "SEPARATE-BUFFER-LISTからBUFFERを取り除く."
+  (elscreen-separate-buffer-list-count-dec buffer)
   (setq elscreen-separate-buffer-list (cl-loop for i in elscreen-separate-buffer-list
                                             unless (equal i buffer)
                                             collect i)))
 
 (defun elscreen-update-separate-buffer-list ()
   "SEPARATE-BUFFER-LISTを更新する."
+  (elscreen-separate-buffer-list-count-clean)
   (setq elscreen-separate-buffer-list (cl-loop for i in elscreen-separate-buffer-list
                                             if (buffer-live-p i)
                                             collect i)))
+
+(defun elscreen-separate-buffer-list-count-inc (buffer)
+  "BUFFERのカウントを上げる."
+  (cl-loop for i in elscreen-separate-buffer-count-list
+           if (equal (car i) buffer)
+           do (setcdr i  (+ 1 (cdr i)))
+           and return nil
+           finally (push (cons buffer 1) elscreen-separate-buffer-count-list)))
+
+(defun elscreen-separate-buffer-list-count-dec (buffer)
+  "BUFFERのカウントを下げる."
+  (setq elscreen-separate-buffer-count-list   (cl-loop for i in elscreen-separate-buffer-count-list
+                                                       if (equal (car i) buffer)
+                                                       do (setcdr i  (- (cdr i) 1))
+                                                       if (< 0 (cdr i))
+                                                       collect i)))
+
+(defun elscreen-separate-buffer-list-count (buffer)
+  "BUFFERのカウントを返す."
+  (cl-loop for i in elscreen-separate-buffer-count-list
+           if (equal (car i) buffer)
+           return (cdr i)
+           finally return 0))
+
+(defun elscreen-separate-buffer-list-count-clean ()
+  "BUFFER-COUNTの掃除をする."
+  (setq elscreen-separate-buffer-count-list   (cl-loop for i in elscreen-separate-buffer-count-list
+                                                       if (buffer-live-p (car i))
+                                                       collect i)))
 
 (defun elscreen-goto:restore-separate-buffer-list (origin &rest args)
   "SCREENの切替時にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを復元する."
@@ -118,8 +151,14 @@
 
 (defun elscreen-separate-buffer-list-kill-buffer-hook ()
   "BUFFER削除時にSEPARATE-BUFFER-LISTからも削除する."
-  (elscreen-remove-separate-buffer-list (current-buffer)))
-(add-hook 'kill-buffer-hook 'elscreen-separate-buffer-list-kill-buffer-hook)
+  (let ((buffer (current-buffer)))
+    (when (member buffer elscreen-separate-buffer-list)
+      (elscreen-remove-separate-buffer-list buffer)
+      (if (> 1 (elscreen-separate-buffer-list-count buffer))
+          t
+        (bury-buffer)
+        nil))))
+(add-hook 'kill-buffer-query-functions 'elscreen-separate-buffer-list-kill-buffer-hook)
 
 (defun elscreen-separate-buffer-list-buffer-list-update-hook ()
   "BUFFER-LIST更新時にSEPARATE-BUFFER-LISTも更新する."
