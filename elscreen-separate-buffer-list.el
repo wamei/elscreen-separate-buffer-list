@@ -137,7 +137,9 @@
 
 (defun esbl-clone:elscreen-clone (&rest _)
   "SCREENの複製時にSEPARATE-BUFFER-LISTも複製する."
-  (esbl-restore-separate-buffer-list (elscreen-get-previous-screen)))
+  (esbl-restore-separate-buffer-list (elscreen-get-previous-screen))
+  (loop for i in (esbl-get-separate-buffer-list)
+        do (esbl-separate-buffer-list-count-inc i)))
 
 (defun esbl-kill:elscreen-kill (origin &rest args)
   "SCREENの削除時にBUFFERの削除、SEPARATE-BUFFER-LISTの復元をする."
