@@ -39,16 +39,18 @@
 (defvar esbl-separate-buffer-list '())
 (defvar esbl-separate-buffer-count-list '())
 
-(defun esbl-get-separate-window-history (screen)
-  "SCREENに保存されているWINDOW-HISTORYを取得する."
-  (let ((screen-property (elscreen-get-screen-property screen)))
-    (assoc-default 'separate-window-history screen-property)))
-
-(defun esbl-set-separate-window-history (screen winHistory)
-  "SCREENにWINHISTORYで与えられるWINDOW-HISTORYを格納する."
-  (let ((screen-property (elscreen-get-screen-property screen)))
-    (elscreen--set-alist 'screen-property 'separate-window-history winHistory)
+(defun esbl-save-separate-window-history (&optional screen)
+  "SCREENに現在のWINDOW-HISTORYを保存する."
+  (let ((screen (or screen (elscreen-get-current-screen)))
+        (screen-property (elscreen-get-screen-property screen)))
+    (elscreen--set-alist 'screen-property 'separate-window-history (esbl-get-all-window-history-alist))
     (elscreen-set-screen-property screen screen-property)))
+
+(defun esbl-restore-separate-window-history (&optional screen)
+  "SCREENに保存されているWINDOW-HISTORYを復元する."
+  (let* ((screen (or screen (elscreen-get-current-screen)))
+        (screen-property (elscreen-get-screen-property screen)))
+    (esbl-restore-all-window-history-alist (assoc-default 'separate-window-history screen-property))))
 
 (defun esbl-save-separate-buffer-list (&optional screen)
   "SCREENに現在のSEPARATE-BUFFER-LISTを保存する."
@@ -128,9 +130,9 @@
 
 (defun esbl-goto:elscreen-goto (origin &rest args)
   "SCREENの切替時にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを復元する."
-  (esbl-set-separate-window-history (elscreen-get-current-screen) (esbl-get-all-window-history-alist))
+  (esbl-save-separate-window-history (elscreen-get-current-screen))
   (apply origin args)
-  (esbl-restore-all-window-history-alist (esbl-get-separate-window-history (elscreen-get-current-screen)))
+  (esbl-restore-separate-window-history (elscreen-get-current-screen))
   (when (elscreen-screen-live-p (elscreen-get-previous-screen))
     (esbl-save-separate-buffer-list (elscreen-get-previous-screen)))
   (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
