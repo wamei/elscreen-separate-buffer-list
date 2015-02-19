@@ -137,6 +137,15 @@
     (esbl-save-separate-buffer-list (elscreen-get-previous-screen)))
   (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
 
+(defun esbl-swap:elscreen-swap (origin &rest args)
+  "SCREENのswap時にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを復元する."
+  (esbl-save-separate-window-history (elscreen-get-current-screen))
+  (apply origin args)
+  (esbl-restore-separate-window-history (elscreen-get-current-screen))
+  (when (elscreen-screen-live-p (elscreen-get-previous-screen))
+    (esbl-save-separate-buffer-list (elscreen-get-previous-screen)))
+  (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
+
 (defun esbl-clone:elscreen-clone (&rest _)
   "SCREENの複製時にSEPARATE-BUFFER-LISTも複製する."
   (esbl-restore-separate-buffer-list (elscreen-get-previous-screen))
@@ -213,6 +222,7 @@
           history-alist)))
 
 (advice-add 'elscreen-goto :around 'esbl-goto:elscreen-goto)
+(advice-add 'elscreen-swap :around 'esbl-swap:elscreen-swap)
 (advice-add 'elscreen-clone :after 'esbl-clone:elscreen-clone)
 (advice-add 'elscreen-kill :around 'esbl-kill:elscreen-kill)
 (advice-add 'switch-to-buffer :after 'esbl-add-separate-buffer-list:switch-to-buffer)
