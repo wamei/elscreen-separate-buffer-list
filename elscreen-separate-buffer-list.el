@@ -27,6 +27,7 @@
 ;; To use this, add the following line somewhere in your init file:
 ;;
 ;;      (require 'elscreen-separate-buffer-list)
+;;      (elscreen-separate-buffer-list-mode)
 ;;
 
 ;;; Code:
@@ -71,7 +72,7 @@
          (buffList (esbl-get-separate-buffer-list screen)))
     (if buffList
         (setq esbl-separate-buffer-list buffList)
-      (setq esbl-separate-buffer-list (esbl-make-default-separate-buffer-list)))))
+      (esbl-set-default-separate-buffer-list))))
 
 (defun esbl-add-separate-buffer-list (buffer)
   "SEPARATE-BUFFER-LISTにBUFFERを加える."
@@ -130,14 +131,12 @@
   (when (elscreen-screen-live-p (elscreen-get-previous-screen))
     (esbl-save-separate-buffer-list (elscreen-get-previous-screen)))
   (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
-(advice-add 'elscreen-goto :around 'esbl-goto:elscreen-goto)
 
 (defun esbl-clone:elscreen-clone (&rest _)
   "SCREENの複製時にSEPARATE-BUFFER-LISTも複製する."
   (let ((stack (esbl-get-separate-buffer-list (elscreen-get-previous-screen))))
     (esbl-set-separate-buffer-list (elscreen-get-current-screen) stack)
     (esbl-restore-separate-buffer-list (elscreen-get-current-screen))))
-(advice-add 'elscreen-clone :after 'esbl-clone:elscreen-clone)
 
 (defun esbl-kill:elscreen-kill (origin &rest args)
   "SCREENの削除時にBUFFERの削除、SEPARATE-BUFFER-LISTの復元をする."
@@ -147,40 +146,36 @@
         (buffer-list))
   (apply origin args)
   (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
-(advice-add 'elscreen-kill :around 'esbl-kill:elscreen-kill)
 
 (defun esbl-kill-buffer-hook ()
   "BUFFER削除時にSEPARATE-BUFFER-LISTからも削除する."
   (let ((buffer (current-buffer)))
     (when (member buffer esbl-separate-buffer-list)
       (esbl-remove-separate-buffer-list buffer)
-      (if (> 1 (esbl-separate-buffer-list-count buffer))
-          t
-        (bury-buffer)
-        nil))))
-(add-hook 'kill-buffer-query-functions 'esbl-kill-buffer-hook)
+      (if elscreen-separate-buffer-list-mode
+          (if (> 1 (esbl-separate-buffer-list-count buffer))
+              t
+            (bury-buffer)
+            nil)
+        t))))
 
 (defun esbl-buffer-list-update-hook ()
   "BUFFER-LIST更新時にSEPARATE-BUFFER-LISTも更新する."
   (esbl-update-separate-buffer-list))
-(add-hook 'buffer-list-update-hook 'esbl-buffer-list-update-hook)
 
 (defun esbl-add-separate-buffer-list:switch-to-buffer (buffer &rest _)
   "BUFFER切り替え時にSEPARATE-BUFFER-LISTに追加する."
   (esbl-add-separate-buffer-list (get-buffer buffer)))
-(advice-add 'switch-to-buffer :after 'esbl-add-separate-buffer-list:switch-to-buffer)
 
 (defun esbl-add-separate-buffer-list:get-buffer-create (buffer &rest _)
   "GET-BUFFER-CREATE時にSEPARATE-BUFFER-LISTに追加する."
   (esbl-add-separate-buffer-list (get-buffer buffer)))
-(advice-add 'get-buffer-create :after 'esbl-add-separate-buffer-list:get-buffer-create)
 
 (defun esbl-return-separate-buffer-list:buffer-list (origin &rest _)
   "BUFFER-LISTが呼ばれた際にSEPARATE-BUFFER-LISTでフィルタリングを行う."
   (loop for i in (apply origin _)
            if (member (get-buffer i) esbl-separate-buffer-list)
            collect i))
-(advice-add 'buffer-list :around 'esbl-return-separate-buffer-list:buffer-list)
 
 ;; elscreenのパッチからパクってきた
 (defun esbl-window-history-supported-p ()
@@ -212,17 +207,32 @@
                 (set-window-next-buffers window nexts))))
           history-alist)))
 
-;; 初期化
-
 (defun esbl-make-default-separate-buffer-list ()
   "デフォルトのバッファリストを作成する."
   (loop for i in esbl-separate-buffer-list-default
            collect (get-buffer i)))
 
-(defun esbl-init-hook ()
-  "初期化関数.デフォルトのバッファリストを設定する."
+(defun esbl-set-default-separate-buffer-list ()
+  "デフォルトのバッファリストを設定する."
   (setq esbl-separate-buffer-list (esbl-make-default-separate-buffer-list)))
-(add-hook 'after-init-hook 'esbl-init-hook)
+
+(advice-add 'elscreen-goto :around 'esbl-goto:elscreen-goto)
+(advice-add 'elscreen-clone :after 'esbl-clone:elscreen-clone)
+(advice-add 'elscreen-kill :around 'esbl-kill:elscreen-kill)
+(advice-add 'switch-to-buffer :after 'esbl-add-separate-buffer-list:switch-to-buffer)
+(advice-add 'get-buffer-create :after 'esbl-add-separate-buffer-list:get-buffer-create)
+(add-hook 'kill-buffer-query-functions 'esbl-kill-buffer-hook)
+(add-hook 'buffer-list-update-hook 'esbl-buffer-list-update-hook)
+(add-hook 'after-init-hook 'esbl-set-default-separate-buffer-list)
+
+;;;###autoload
+(define-minor-mode elscreen-separate-buffer-list-mode
+  "Toggle elscreen separate buffer list mode."
+  :group 'elscreen
+  :global t
+  (if elscreen-separate-buffer-list-mode
+        (advice-add 'buffer-list :around 'esbl-return-separate-buffer-list:buffer-list)
+    (advice-remove 'buffer-list 'esbl-return-separate-buffer-list:buffer-list)))
 
 (provide 'elscreen-separate-buffer-list)
 
