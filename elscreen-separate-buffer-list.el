@@ -2,7 +2,7 @@
 
 ;; Author: wamei <wamei.cho@gmail.com>
 ;; Keywords: elscreen
-;; Version: 0.1.2
+;; Version: 0.1.3
 ;; Package-Requires: ((emacs "24.4") (elscreen "1.4.6"))
 
 ;; License:
@@ -38,6 +38,8 @@
 (defvar esbl-separate-buffer-list-default '("*scratch*" "*Messages*"))
 (defvar esbl-separate-buffer-list '())
 (defvar esbl-separate-buffer-count-list '())
+
+(defvar ido-temp-list)
 
 (defun esbl-save-separate-window-history (&optional screen)
   "SCREENに現在のWINDOW-HISTORYを保存する."
@@ -191,6 +193,12 @@
            if (member (get-buffer i) (esbl-get-separate-buffer-list))
            collect i))
 
+(defun esbl-set-ido-separate-buffer-list ()
+  "IDO-MAKE-BUFFER-LISTが呼ばれた際にSEPARATE-BUFFER-LISTでフィルタリングを行う."
+  (setq ido-temp-list (loop for i in (buffer-list)
+                            if (member (get-buffer i) (esbl-get-separate-buffer-list))
+                            collect (buffer-name i))))
+
 ;; elscreenのパッチからパクってきた
 (defun esbl-window-history-supported-p ()
   "WINDOW-HISTORYに対応しているかどうか."
@@ -236,8 +244,8 @@
   :group 'elscreen
   :global t
   (if elscreen-separate-buffer-list-mode
-        (advice-add 'buffer-list :around 'esbl-return-separate-buffer-list:buffer-list)
-    (advice-remove 'buffer-list 'esbl-return-separate-buffer-list:buffer-list)))
+        (add-hook 'ido-make-buffer-list-hook 'esbl-set-ido-separate-buffer-list)
+    (remove-hook 'ido-make-buffer-list-hook 'esbl-set-ido-separate-buffer-list)))
 
 (provide 'elscreen-separate-buffer-list)
 
