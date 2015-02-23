@@ -196,9 +196,10 @@
 
 (defun esbl-set-ido-separate-buffer-list ()
   "IDO-MAKE-BUFFER-LISTが呼ばれた際にSEPARATE-BUFFER-LISTでフィルタリングを行う."
-  (setq ido-temp-list (loop for i in (buffer-list)
-                            if (member (get-buffer i) (esbl-get-separate-buffer-list))
-                            collect (buffer-name i))))
+  (let ((list (loop for i in (buffer-list)
+                   if (member (get-buffer i) (esbl-get-separate-buffer-list))
+                   collect (buffer-name i))))
+    (setq ido-temp-list (append (cdr list) (list (car list))))))
 
 ;; elscreenのパッチからパクってきた
 (defun esbl-window-history-supported-p ()
