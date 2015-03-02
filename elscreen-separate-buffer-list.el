@@ -131,16 +131,18 @@
                                                        if (buffer-live-p (car i))
                                                        collect i)))
 
-(defun esbl-goto:elscreen-goto (origin &rest args)
+(defun esbl-goto:around (origin &rest args)
   "SCREENの切替時にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを復元する."
-  (esbl-save-separate-window-history (elscreen-get-current-screen))
-  (apply origin args)
-  (esbl-restore-separate-window-history (elscreen-get-current-screen))
-  (when (elscreen-screen-live-p (elscreen-get-previous-screen))
-    (esbl-save-separate-buffer-list (elscreen-get-previous-screen)))
-  (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
+  (let ((number (elscreen-get-current-screen)))
+    (esbl-save-separate-window-history (elscreen-get-current-screen))
+    (apply origin args)
+    (esbl-restore-separate-window-history (elscreen-get-current-screen))
+    (unless (eq number (elscreen-get-current-screen))
+      (when (elscreen-screen-live-p (elscreen-get-previous-screen))
+        (esbl-save-separate-buffer-list (elscreen-get-previous-screen)))
+      (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))))
 
-(defun esbl-swap:elscreen-swap (origin &rest args)
+(defun esbl-swap:around (origin &rest args)
   "SCREENのswap時にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを復元する."
   (esbl-save-separate-window-history (elscreen-get-current-screen))
   (apply origin args)
@@ -149,13 +151,13 @@
     (esbl-save-separate-buffer-list (elscreen-get-previous-screen)))
   (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
 
-(defun esbl-clone:elscreen-clone (&rest _)
+(defun esbl-clone:after (&rest _)
   "SCREENの複製時にSEPARATE-BUFFER-LISTも複製する."
   (esbl-restore-separate-buffer-list (elscreen-get-previous-screen))
   (loop for i in (esbl-get-separate-buffer-list)
         do (esbl-separate-buffer-list-count-inc i)))
 
-(defun esbl-kill:elscreen-kill (origin &rest args)
+(defun esbl-kill:around (origin &rest args)
   "SCREENの削除時にBUFFERの削除、SEPARATE-BUFFER-LISTの復元をする."
   (mapc (lambda (buffer)
           (unless (member (buffer-name buffer) esbl-separate-buffer-list-default)
@@ -180,12 +182,8 @@
   "BUFFER-LIST更新時にSEPARATE-BUFFER-LISTも更新する."
   (esbl-update-separate-buffer-list))
 
-(defun esbl-add-separate-buffer-list:switch-to-buffer (buffer &rest _)
-  "BUFFER切り替え時にSEPARATE-BUFFER-LISTに追加する."
-  (esbl-add-separate-buffer-list (get-buffer buffer)))
-
-(defun esbl-add-separate-buffer-list:get-buffer-create (buffer &rest _)
-  "GET-BUFFER-CREATE時にSEPARATE-BUFFER-LISTに追加する."
+(defun esbl-add-separate-buffer-list:advice (buffer &rest _)
+  "BUFFERをSEPARATE-BUFFER-LISTに追加するADVICE用関数."
   (esbl-add-separate-buffer-list (get-buffer buffer)))
 
 (defun esbl-return-separate-buffer-list:buffer-list (origin &rest _)
@@ -231,12 +229,12 @@
                 (set-window-next-buffers window nexts))))
           history-alist)))
 
-(advice-add 'elscreen-goto :around 'esbl-goto:elscreen-goto)
-(advice-add 'elscreen-swap :around 'esbl-swap:elscreen-swap)
-(advice-add 'elscreen-clone :after 'esbl-clone:elscreen-clone)
-(advice-add 'elscreen-kill :around 'esbl-kill:elscreen-kill)
-(advice-add 'switch-to-buffer :after 'esbl-add-separate-buffer-list:switch-to-buffer)
-(advice-add 'get-buffer-create :after 'esbl-add-separate-buffer-list:get-buffer-create)
+(advice-add 'elscreen-goto :around 'esbl-goto:around)
+(advice-add 'elscreen-swap :around 'esbl-swap:around)
+(advice-add 'elscreen-clone :after 'esbl-clone:after)
+(advice-add 'elscreen-kill :around 'esbl-kill:around)
+(advice-add 'switch-to-buffer :after 'esbl-add-separate-buffer-list:advice)
+(advice-add 'display-buffer :after 'esbl-add-separate-buffer-list:advice)
 (add-hook 'kill-buffer-query-functions 'esbl-kill-buffer-hook)
 (add-hook 'buffer-list-update-hook 'esbl-buffer-list-update-hook)
 
