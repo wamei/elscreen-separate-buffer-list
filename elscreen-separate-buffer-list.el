@@ -158,7 +158,7 @@
         do (esbl-separate-buffer-list-count-inc i)))
 
 (defun esbl-kill:around (origin &rest args)
-  "SCREENの削除時にBUFFERのカウントを下げ、SEPARATE-BUFFER-LISTの復元をする."
+  "SCREENの削除時にBUFFERの削除、SEPARATE-BUFFER-LISTの復元をする."
   (let* ((screen (or (and (integerp (car args)) (car args))
                      (elscreen-get-current-screen)))
          (separate-buffer-list
@@ -173,7 +173,9 @@
     (when (or origin-return one-screen-p)
       (mapc (lambda (buffer)
               (unless (member (buffer-name buffer) esbl-separate-buffer-list-default)
-                (esbl-separate-buffer-list-count-dec buffer)))
+                (unless (eq screen (elscreen-get-current-screen))
+                  (esbl-separate-buffer-list-count-dec buffer))
+                (kill-buffer buffer)))
             separate-buffer-list)
       (when one-screen-p
         (esbl-set-default-separate-buffer-list)
