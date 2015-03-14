@@ -157,23 +157,30 @@
   (loop for i in (esbl-get-separate-buffer-list)
         do (esbl-separate-buffer-list-count-inc i)))
 
+(defvar esbl-kill-buffer-another-screen-p nil)
+
 (defun esbl-kill:around (origin &rest args)
-  "SCREENの削除時にBUFFERのカウントを下げ、SEPARATE-BUFFER-LISTの復元をする."
+  "SCREENの削除時にBUFFERの削除、SEPARATE-BUFFER-LISTの復元をする."
   (let* ((screen (or (and (integerp (car args)) (car args))
                      (elscreen-get-current-screen)))
+         (current-screen-p (eq screen (elscreen-get-current-screen)))
          (separate-buffer-list
           (when (elscreen-screen-live-p screen)
-            (if (eq screen (elscreen-get-current-screen))
+            (if current-screen-p
                 (esbl-get-separate-buffer-list)
               (assoc-default 'separate-buffer-list
                              (elscreen-get-screen-property screen)))))
-         (one-screen-p (and (eq screen (elscreen-get-current-screen))
-                            (elscreen-one-screen-p)))
+         (one-screen-p (and current-screen-p (elscreen-one-screen-p)))
+         (separate-buffer-list-default
+           (mapcar 'get-buffer esbl-separate-buffer-list-default))
          (origin-return (apply origin args)))
     (when (or origin-return one-screen-p)
       (mapc (lambda (buffer)
-              (unless (member (buffer-name buffer) esbl-separate-buffer-list-default)
-                (esbl-separate-buffer-list-count-dec buffer)))
+              (unless (member buffer separate-buffer-list-default)
+                (let ((esbl-kill-buffer-another-screen-p t)
+                      (esbl-separate-buffer-list separate-buffer-list-default))
+                  (esbl-separate-buffer-list-count-dec buffer)
+                  (kill-buffer buffer))))
             separate-buffer-list)
       (when one-screen-p
         (esbl-set-default-separate-buffer-list)
@@ -190,12 +197,13 @@
     (if elscreen-separate-buffer-list-mode
         (if (> 1 (esbl-separate-buffer-list-count buffer))
             t
-          (walk-windows
-           `(lambda (win)
-              (when (eq (window-buffer win) ,buffer)
-                (switch-to-prev-buffer win t)))
-           nil (window-frame))
-          (bury-buffer buffer)
+          (unless esbl-kill-buffer-another-screen-p
+            (walk-windows
+             `(lambda (win)
+                (when (eq (window-buffer win) ,buffer)
+                  (switch-to-prev-buffer win t)))
+             nil (window-frame))
+            (bury-buffer buffer))
           nil)
       t)))
 
