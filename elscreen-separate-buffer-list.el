@@ -157,26 +157,55 @@
   (loop for i in (esbl-get-separate-buffer-list)
         do (esbl-separate-buffer-list-count-inc i)))
 
+(defvar esbl-kill-buffer-another-screen-p nil)
+
 (defun esbl-kill:around (origin &rest args)
   "SCREENの削除時にBUFFERの削除、SEPARATE-BUFFER-LISTの復元をする."
-  (mapc (lambda (buffer)
-          (unless (member (buffer-name buffer) esbl-separate-buffer-list-default)
-            (kill-buffer buffer)))
-        (buffer-list))
-  (apply origin args)
-  (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
+  (let* ((screen (or (and (integerp (car args)) (car args))
+                     (elscreen-get-current-screen)))
+         (current-screen-p (eq screen (elscreen-get-current-screen)))
+         (separate-buffer-list
+          (when (elscreen-screen-live-p screen)
+            (if current-screen-p
+                (esbl-get-separate-buffer-list)
+              (assoc-default 'separate-buffer-list
+                             (elscreen-get-screen-property screen)))))
+         (one-screen-p (and current-screen-p (elscreen-one-screen-p)))
+         (separate-buffer-list-default
+           (mapcar 'get-buffer esbl-separate-buffer-list-default))
+         (origin-return (apply origin args)))
+    (when (or origin-return one-screen-p)
+      (mapc (lambda (buffer)
+              (unless (member buffer separate-buffer-list-default)
+                (let ((esbl-kill-buffer-another-screen-p t)
+                      (esbl-separate-buffer-list separate-buffer-list-default))
+                  (esbl-separate-buffer-list-count-dec buffer)
+                  (kill-buffer buffer))))
+            separate-buffer-list)
+      (when one-screen-p
+        (esbl-set-default-separate-buffer-list)
+        (esbl-save-separate-buffer-list (elscreen-get-current-screen))
+        (elscreen-apply-window-configuration (elscreen-default-window-configuration)))
+      (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
+    origin-return))
 
 (defun esbl-kill-buffer-hook ()
   "BUFFER削除時にSEPARATE-BUFFER-LISTからも削除する."
   (let ((buffer (current-buffer)))
     (when (member buffer (esbl-get-separate-buffer-list))
-      (esbl-remove-separate-buffer-list buffer)
-      (if elscreen-separate-buffer-list-mode
-          (if (> 1 (esbl-separate-buffer-list-count buffer))
-              t
-            (bury-buffer)
-            nil)
-        t))))
+      (esbl-remove-separate-buffer-list buffer))
+    (if elscreen-separate-buffer-list-mode
+        (if (> 1 (esbl-separate-buffer-list-count buffer))
+            t
+          (unless esbl-kill-buffer-another-screen-p
+            (walk-windows
+             `(lambda (win)
+                (when (eq (window-buffer win) ,buffer)
+                  (switch-to-prev-buffer win t)))
+             nil (window-frame))
+            (bury-buffer buffer))
+          nil)
+      t)))
 
 (defun esbl-buffer-list-update-hook ()
   "BUFFER-LIST更新時にSEPARATE-BUFFER-LISTも更新する."
