@@ -165,22 +165,22 @@
                      (elscreen-get-current-screen)))
          (current-screen-p (eq screen (elscreen-get-current-screen)))
          (separate-buffer-list
-          (when (elscreen-screen-live-p screen)
-            (if current-screen-p
-                (esbl-get-separate-buffer-list)
-              (assoc-default 'separate-buffer-list
-                             (elscreen-get-screen-property screen)))))
+          (if current-screen-p
+              (esbl-get-separate-buffer-list)
+            (assoc-default 'separate-buffer-list
+                           (elscreen-get-screen-property screen))))
          (one-screen-p (and current-screen-p (elscreen-one-screen-p)))
          (separate-buffer-list-default
            (mapcar 'get-buffer esbl-separate-buffer-list-default))
          (origin-return (apply origin args)))
     (when (or origin-return one-screen-p)
       (mapc (lambda (buffer)
-              (unless (member buffer separate-buffer-list-default)
+              (unless (memq buffer separate-buffer-list-default)
                 (let ((esbl-kill-buffer-another-screen-p t)
                       (esbl-separate-buffer-list separate-buffer-list-default))
                   (esbl-separate-buffer-list-count-dec buffer)
-                  (kill-buffer buffer))))
+                  (when elscreen-separate-buffer-list-mode
+                    (kill-buffer buffer)))))
             separate-buffer-list)
       (when one-screen-p
         (esbl-set-default-separate-buffer-list)
