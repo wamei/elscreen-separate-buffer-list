@@ -228,6 +228,43 @@
                    collect (buffer-name i))))
     (setq ido-temp-list (append (cdr list) (list (car list))))))
 
+(defun esbl-handle-switch-frame:before (&rest _)
+  "FRAMEの切替前にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを保存する."
+  (esbl-save-separate-window-history (elscreen-get-current-screen))
+  (esbl-save-separate-buffer-list (elscreen-get-current-screen)))
+
+(defun esbl-handle-switch-frame:after (&rest _)
+  "FRAMEの切替後にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを復元する."
+  (esbl-restore-separate-window-history (elscreen-get-current-screen))
+  (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
+
+(defun esbl-delete-frame-confs:before (frame)
+  "FRAMEの削除時にBUFFERを削除する."
+  (when (eq frame (selected-frame))
+    (esbl-save-separate-buffer-list (elscreen-get-current-screen)))
+  (let* ((esbl-kill-buffer-another-screen-p t)
+         (separate-buffer-list-default
+          (mapcar 'get-buffer esbl-separate-buffer-list-default))
+         (esbl-separate-buffer-list separate-buffer-list-default))
+    (loop for screen-property in (assoc-default 'screen-property
+                                                (elscreen-get-frame-confs frame))
+          do (dolist (buffer (assoc-default 'separate-buffer-list screen-property))
+               (unless (memq buffer separate-buffer-list-default)
+                 (esbl-separate-buffer-list-count-dec buffer)
+                 (when elscreen-separate-buffer-list-mode
+                    (kill-buffer buffer)))))))
+
+(defvar esbl-selected-frame (selected-frame)
+  "WINDOW-CONFIGURATION-CHANGE-HOOKが呼ばれる前に選択していたFRAME.")
+
+(defun esbl-window-configuration-change-hook ()
+  "FRAMEの削除後にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを復元する."
+  ;; HANDLE-SWITCH-FRAMEが呼ばれない場合のために復元する.
+  (unless (frame-live-p esbl-selected-frame)
+    (esbl-restore-separate-window-history (elscreen-get-current-screen))
+    (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
+  (setq esbl-selected-frame (selected-frame)))
+
 ;; elscreenのパッチからパクってきた
 (defun esbl-window-history-supported-p ()
   "WINDOW-HISTORYに対応しているかどうか."
@@ -264,8 +301,12 @@
 (advice-add 'elscreen-kill :around 'esbl-kill:around)
 (advice-add 'switch-to-buffer :after 'esbl-add-separate-buffer-list:advice)
 (advice-add 'display-buffer :after 'esbl-add-separate-buffer-list:advice)
+(advice-add 'handle-switch-frame :before 'esbl-handle-switch-frame:before)
+(advice-add 'handle-switch-frame :after  'esbl-handle-switch-frame:after)
+(advice-add 'elscreen-delete-frame-confs :before 'esbl-delete-frame-confs:before)
 (add-hook 'kill-buffer-query-functions 'esbl-kill-buffer-hook)
 (add-hook 'buffer-list-update-hook 'esbl-buffer-list-update-hook)
+(add-hook 'window-configuration-change-hook 'esbl-window-configuration-change-hook)
 
 ;;;###autoload
 (define-minor-mode elscreen-separate-buffer-list-mode
