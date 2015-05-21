@@ -236,6 +236,18 @@
   (esbl-restore-separate-window-history (elscreen-get-current-screen))
   (esbl-restore-separate-buffer-list (elscreen-get-current-screen)))
 
+(defun esbl-after-make-frame (frame)
+  "FRAMEの作成時にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを保存・復元する."
+  (let ((selected-frame (selected-frame)))
+    (esbl-save-separate-window-history (elscreen-get-current-screen))
+    (esbl-save-separate-buffer-list (elscreen-get-current-screen))
+    (save-current-buffer
+      (select-frame frame)
+      (esbl-restore-separate-window-history (elscreen-get-current-screen))
+      (esbl-restore-separate-buffer-list (elscreen-get-current-screen))
+      (select-frame selected-frame))))
+(add-hook 'after-make-frame-functions 'esbl-after-make-frame)
+
 (defun esbl-delete-frame-confs:before (frame)
   "FRAMEの削除時にBUFFERを削除する."
   (when (eq frame (selected-frame))
