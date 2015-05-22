@@ -228,7 +228,7 @@
                    collect (buffer-name i))))
     (setq ido-temp-list (append (cdr list) (list (car list))))))
 
-(defun esbl-handle-switch-frame:around (origin &rest args)
+(defun esbl-switch-frame:around (origin &rest args)
   "FRAMEの切替時にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを保存・復元する."
   (esbl-save-separate-window-history (elscreen-get-current-screen))
   (esbl-save-separate-buffer-list (elscreen-get-current-screen))
@@ -246,7 +246,6 @@
       (esbl-restore-separate-window-history (elscreen-get-current-screen))
       (esbl-restore-separate-buffer-list (elscreen-get-current-screen))
       (select-frame selected-frame))))
-(add-hook 'after-make-frame-functions 'esbl-after-make-frame)
 
 (defun esbl-delete-frame-confs:before (frame)
   "FRAMEの削除時にBUFFERを削除する."
@@ -311,11 +310,13 @@
 (advice-add 'elscreen-kill :around 'esbl-kill:around)
 (advice-add 'switch-to-buffer :after 'esbl-add-separate-buffer-list:advice)
 (advice-add 'display-buffer :after 'esbl-add-separate-buffer-list:advice)
-(advice-add 'handle-switch-frame :around 'esbl-handle-switch-frame:around)
+(advice-add 'handle-switch-frame :around 'esbl-switch-frame:around)
+(advice-add 'select-frame-set-input-focus :around 'esbl-switch-frame:around)
 (advice-add 'elscreen-delete-frame-confs :before 'esbl-delete-frame-confs:before)
 (add-hook 'kill-buffer-query-functions 'esbl-kill-buffer-hook)
 (add-hook 'buffer-list-update-hook 'esbl-buffer-list-update-hook)
 (add-hook 'window-configuration-change-hook 'esbl-window-configuration-change-hook)
+(add-hook 'after-make-frame-functions 'esbl-after-make-frame)
 
 ;;;###autoload
 (define-minor-mode elscreen-separate-buffer-list-mode
