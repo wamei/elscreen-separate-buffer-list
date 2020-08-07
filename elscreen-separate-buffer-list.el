@@ -228,6 +228,22 @@
                    collect i)))
     (setq ido-temp-list list)))
 
+(defun esbl-buffer-name-filter (buffer-names)
+  "SEPARATE-BUFFER-LISTでフィルタリングを行う."
+  (let ((buffer-names-to-keep (mapcar #'buffer-name
+                                      (esbl-get-separate-buffer-list))))
+    (seq-filter (lambda (elt)
+                  (member elt buffer-names-to-keep))
+                buffer-names)))
+
+(defun esbl-around-internal-complete-buffer (orig &rest rest)
+    (if (memq this-command '(ivy-switch-buffer
+                             ivy-switch-buffer-other-window
+                             counsel-switch-buffer
+                             counsel-switch-buffer-other-window))
+        (esbl-buffer-name-filter (mapcar #'buffer-name (buffer-list)))
+      (apply orig rest)))
+
 (defun esbl-switch-frame:around (origin &rest args)
   "FRAMEの切替時にSEPARATE-BUFFER-LIST,WINDOW-HISTORYを保存・復元する."
   (esbl-save-separate-window-history (elscreen-get-current-screen))
@@ -324,8 +340,14 @@
   :group 'elscreen
   :global t
   (if elscreen-separate-buffer-list-mode
+      (progn
         (add-hook 'ido-make-buffer-list-hook 'esbl-set-ido-separate-buffer-list)
-    (remove-hook 'ido-make-buffer-list-hook 'esbl-set-ido-separate-buffer-list)))
+        (advice-add 'helm-buffer-list :filter-return 'esbl-buffer-name-filter)
+        (advice-add #'internal-complete-buffer :around 'esbl-around-internal-complete-buffer))
+    (progn
+      (remove-hook 'ido-make-buffer-list-hook 'esbl-set-ido-separate-buffer-list)
+      (advice-remove 'helm-buffer-list 'esbl-buffer-name-filter)
+      (advice-remove #'internal-complete-buffer 'esbl-around-internal-complete-buffer))))
 
 (provide 'elscreen-separate-buffer-list)
 
